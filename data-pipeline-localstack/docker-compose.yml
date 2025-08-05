@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  localstack:
+    container_name: "${LOCALSTACK_DOCKER_NAME:-localstack-main}"
+    image: localstack/localstack-pro
+    platform: linux/amd64
+    privileged: true
+    ports:
+      - "127.0.0.1:4566:4566"            # LocalStack Gateway
+      - "127.0.0.1:14510-14559:4510-4559" # external services port range (alterado para evitar conflitos)
+      - "1443:443"                       # HTTPS Gateway (alterado para evitar conflitos)
+      - "18080:8080"                     # Web UI (alterado para evitar conflitos)
+    environment:
+      # Configuração principal
+      - SERVICES=s3,sqs,sns,lambda,glue,athena,stepfunctions,cloudwatch,events,iam,sts,ssm,secretsmanager,kms,dms,redshift,firehose,kinesis,es,opensearch,opensearchservice
+      - DEBUG=${DEBUG:-0}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DEFAULT_REGION=us-east-1
+      - LOCALSTACK_HOST=localstack
+      - HOSTNAME_EXTERNAL=localstack
+      - HOST_TMP_FOLDER=${TMPDIR:-/tmp/}localstack
+      - DATA_DIR=/tmp/localstack/data
+      - LOCALSTACK_API_KEY=${LOCALSTACK_API_KEY:?LOCALSTACK_API_KEY não definida}
+      - PRO_ACCOUNT=1
+      
+      # Configurações específicas
+      - LAMBDA_EXECUTOR=docker-reuse
+      - LAMBDA_REMOTE_DOCKER=true
+      - LAMBDA_DOCKER_NETWORK=data-pipeline-network
+      - LAMBDA_REMOVE_CONTAINERS=false
+      - DOCKER_FLAGS=--platform=linux/amd64
+      
+      # Configurações de rede
+      - EDGE_PORT=4566
+      - EDGE_PORT_HTTP=4566
+      - EDGE_PORT_HTTPS=443
+      
+      # Configurações de persistência (opcional)
+      - PERSISTENCE=1
+      - PERSISTENCE_DIR=/var/lib/localstack/persistence
+    volumes:
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - localstack
+      - data-pipeline-network
+
+  # PostgreSQL Source
+  postgres-source:
+    image: postgres:13
+    container_name: postgres-source
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sourcedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_source_data:/var/lib/postgresql/data
+    networks:
+      - data-pipeline-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Target
+  postgres-target:
+    image: postgres:13
+    container_name: postgres-target
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: targetdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_target_data:/var/lib/postgresql/data
+    networks:
+      - data-pipeline-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # MySQL Source (para CDC)
+  mysql-source:
+    image: mysql:8.0
+    container_name: mysql-source
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: source_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --binlog-format=ROW --log-bin=mysql-bin --binlog-row-metadata=FULL
+    networks:
+      - data-pipeline-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # Jupyter Notebook para análise de dados
+  jupyter:
+    image: jupyter/datascience-notebook:latest
+    container_name: jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - GRANT_SUDO=yes
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ENDPOINT_URL=http://localstack:4566
+    depends_on:
+      - localstack
+    networks:
+      - data-pipeline-network
+
+networks:
+  localstack:
+    driver: bridge
+  data-pipeline-network:
+    driver: bridge
+
+volumes:
+  postgres_source_data:
+  postgres_target_data:
+  mysql_data:

@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: "Staging model for orders data"
+    columns:
+      - name: order_id
+        description: "The primary key for this table"
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Foreign key to the customers table"
+      - name: order_date
+        description: "Date when the order was placed"
+        tests:
+          - not_null
+      - name: status
+        description: "Status of the order"
+      - name: amount
+        description: "Total amount of the order"
+        tests:
+          - not_null
+
+  - name: stg_customers
+    description: "Staging model for customers data"
+    columns:
+      - name: customer_id
+        description: "The primary key for this table"
+        tests:
+          - unique
+          - not_null
+      - name: first_name
+        description: "Customer's first name"
+      - name: last_name
+        description: "Customer's last name"
+      - name: email
+        description: "Customer's email address"
+        tests:
+          - not_null
+          - unique

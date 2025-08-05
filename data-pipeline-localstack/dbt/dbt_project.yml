@@ -1,0 +1,44 @@
+name: 'data_pipeline'
+version: '1.0.0'
+config-version: 2
+
+profile: 'data_pipeline'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  data_pipeline:
+    staging:
+      +materialized: view
+      +schema: staging
+      +tags: ["staging"]
+    marts:
+      +materialized: table
+      +schema: marts
+      +tags: ["marts"]
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+      +tags: ["intermediate"]
+
+seeds:
+  data_pipeline:
+    +enabled: true
+    +quote_columns: true
+
+tests:
+  data_pipeline:
+    +severity: warn
+    +store_failures: true
+
+vars:
+  target_schema: "{{ target.schema }}"
+  target_database: "{{ target.database }}"

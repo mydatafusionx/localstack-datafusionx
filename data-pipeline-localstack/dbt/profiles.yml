@@ -1,0 +1,18 @@
+data_pipeline:
+  target: dev
+  outputs:
+    dev:
+      type: athena
+      s3_staging_dir: s3://query-results/
+      s3_data_dir: s3://datalake/
+      region_name: us-east-1
+      schema: data_lake
+      database: data_lake
+      work_group: primary
+      aws_access_key_id: test
+      aws_secret_access_key: test
+      endpoint_url: http://localstack:4566/
+      threads: 4
+      poll_interval: 5
+      num_retries: 3
+      s3_data_naming: schema_table
